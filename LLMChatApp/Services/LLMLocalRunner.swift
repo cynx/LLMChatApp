@@ -1,4 +1,3 @@
-//
 //  LocalLLMRunner.swift
 //  LLMChatApp
 //
@@ -7,11 +6,9 @@
 import Foundation
 import SpeziLLM
 import SpeziLLMLocal
-import Combine
 
 /// Manages local LLM execution using SpeziLLMLocal
 class LLMLocalRunner {
-    @Published private var currentSession: LLMLocalSession?
     private var currentModel: LLMLocalModel?
     
     /// Load a model and prepare it for inference
@@ -20,63 +17,29 @@ class LLMLocalRunner {
         currentModel = model
     }
     
-    /// Generate a response using the loaded model
-    func generate(prompt: String, model: LLMLocalModel) async throws -> String {
-        guard currentModel?.id == model.id else {
-            throw LLMError.modelNotLoaded
-        }
-        
-        // Create LLM schema based on model ID
-        let schema = createSchema(for: model)
-        
-        // Create a session using the schema
-        let session = LLMLocalSession(<#LLMLocalPlatform#>, schema: schema)
-        currentSession = session
-        
-        // Generate response
-        var fullResponse = ""
-        
-        do {
-            // Send the prompt to the session
-            try await session.send(prompt: prompt)
-            
-            // Collect the streamed response
-            for try await token in try await session.generate() {
-                fullResponse.append(token)
-            }
-        } catch {
-            throw LLMError.generationFailed(error.localizedDescription)
-        }
-        
-        return fullResponse
-    }
-    
     /// Create appropriate schema for the model
-    private func createSchema(for model: LLMLocalModel) -> LLMLocalSchema {
+    static func createSchema(for model: LLMLocalModel) -> LLMLocalSchema {
         // Map model IDs to actual model configurations
         switch model.id {
         case "llama-3.2-1b":
             return LLMLocalSchema(
                 model: .llama3_2_1B_4bit,
                 parameters: .init(
-                    maxOutputLength: 512,
-                   // temperature: 0.7
+                    maxOutputLength: 512
                 )
             )
         case "phi-3-mini":
             return LLMLocalSchema(
-                model: .phi3_5_4bit,
+                model: .phi3_5_mini_4bit,
                 parameters: .init(
-                    maxOutputLength: 512,
-                   // temperature: 0.7
+                    maxOutputLength: 512
                 )
             )
         case "mistral-7b-q4":
             return LLMLocalSchema(
-                model: .mistral7B4bit,
+                model: .mistral7B_4bit,
                 parameters: .init(
-                    maxOutputLength: 512,
-                  //  temperature: 0.7
+                    maxOutputLength: 512
                 )
             )
         default:
@@ -84,8 +47,7 @@ class LLMLocalRunner {
             return LLMLocalSchema(
                 model: .llama3_2_1B_4bit,
                 parameters: .init(
-                    maxOutputLength: 512,
-                    //temperature: 0.7
+                    maxOutputLength: 512
                 )
             )
         }

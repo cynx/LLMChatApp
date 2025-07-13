@@ -15,7 +15,6 @@ class ModelManager: ObservableObject {
     @Published var isDownloading = false
     @Published var downloadProgress: Double = 0.0
     
-    private let llmRunner = LLMLocalRunner()
     private let modelDownloader = LLMLocalModelDownloader()
     
     init() {
@@ -24,10 +23,10 @@ class ModelManager: ObservableObject {
     }
     
     func loadAvailableModels() {
-        // In production, this would fetch from a remote source
+        // Define available models
         availableModels = [
             LLMLocalModel(id: "llama-3.2-1b", name: "Llama 3.2 1B", size: "1.2GB"),
-            LLMLocalModel(id: "phi-3-mini", name: "Phi-3 Mini", size: "2.8GB"),
+            LLMLocalModel(id: "phi-3-mini", name: "Phi-3.5 Mini", size: "2.8GB"),
             LLMLocalModel(id: "mistral-7b-q4", name: "Mistral 7B Q4", size: "3.8GB")
         ]
     }
@@ -37,8 +36,10 @@ class ModelManager: ObservableObject {
     }
     
     func downloadModel(_ model: LLMLocalModel) async {
-        isDownloading = true
-        downloadProgress = 0.0
+        await MainActor.run {
+            self.isDownloading = true
+            self.downloadProgress = 0.0
+        }
         
         do {
             try await modelDownloader.download(model) { progress in
@@ -47,13 +48,15 @@ class ModelManager: ObservableObject {
                 }
             }
             
-            DispatchQueue.main.async {
+            await MainActor.run {
                 self.downloadedModels.append(model)
                 self.isDownloading = false
             }
         } catch {
             print("Download failed: \(error)")
-            isDownloading = false
+            await MainActor.run {
+                self.isDownloading = false
+            }
         }
     }
     
@@ -67,6 +70,7 @@ class ModelManager: ObservableObject {
     
     func selectModel(_ model: LLMLocalModel) {
         selectedModel = model
-        llmRunner.loadModel(model)
+        // Model loading is handled by LLMRunner when creating sessions
+        print("Selected model: \(model.name)")
     }
 }

@@ -13,6 +13,7 @@ struct ChatView: View {
     @Environment(LLMRunner.self) var runner
     @StateObject private var chatSession = ChatSession()
     @State private var messageText = ""
+    @State private var showBuiltInChat = false
     
     var body: some View {
         NavigationView {
@@ -20,12 +21,15 @@ struct ChatView: View {
                 if modelManager.selectedModel == nil {
                     NoModelSelectedView()
                 } else {
-                    // Alternative: Use the built-in LLMChatView
-                    if let model = modelManager.selectedModel,
-                       let schema = createSchema(for: model) {
-                        LLMChatView(schema: schema)
+                    if showBuiltInChat {
+                        // Use the built-in LLMChatView
+                        if let model = modelManager.selectedModel {
+                            LLMChatView(
+                                with: LLMLocalRunner.createSchema(for: model)
+                            )
+                        }
                     } else {
-                        // Fallback to custom chat implementation
+                        // Custom chat implementation
                         ChatMessagesView(messages: chatSession.messages)
                         
                         if chatSession.isGenerating {
@@ -44,6 +48,27 @@ struct ChatView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    if modelManager.selectedModel != nil {
+                        Menu {
+                            Button(action: { showBuiltInChat.toggle() }) {
+                                Label(
+                                    showBuiltInChat ? "Use Custom Chat" : "Use Built-in Chat",
+                                    systemImage: showBuiltInChat ? "square.and.pencil" : "message"
+                                )
+                            }
+                            
+                            if !showBuiltInChat {
+                                Button(action: { chatSession.clearMessages() }) {
+                                    Label("Clear Chat", systemImage: "trash")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarLeading) {
                     if let model = modelManager.selectedModel {
                         Text(model.name)
                             .font(.caption)
@@ -55,7 +80,8 @@ struct ChatView: View {
     }
     
     func sendMessage() {
-        guard !messageText.isEmpty else { return }
+        guard !messageText.isEmpty,
+              let model = modelManager.selectedModel else { return }
         
         let userMessage = ChatMessage(content: messageText, isUser: true)
         chatSession.messages.append(userMessage)
@@ -64,88 +90,12 @@ struct ChatView: View {
         messageText = ""
         
         Task {
-            await generateResponse(prompt: prompt)
-        }
-    }
-    
-    func generateResponse(prompt: String) async {
-        guard let model = modelManager.selectedModel,
-              let schema = createSchema(for: model) else { return }
-        
-        chatSession.isGenerating = true
-        
-        do {
-            // Create session via LLMRunner
-            let session: LLMLocalSession = runner(with: schema)
-            
-            // Send prompt and collect response
-            try await session.send(prompt: prompt)
-            
-            var fullResponse = ""
-            for try await token in try await session.generate() {
-                fullResponse.append(token)
-                
-                // Update UI with streaming response
-                await MainActor.run {
-                    if chatSession.messages.last?.isUser == false {
-                        // Update existing assistant message
-                        chatSession.messages[chatSession.messages.count - 1] = ChatMessage(
-                            content: fullResponse,
-                            isUser: false
-                        )
-                    } else {
-                        // Add new assistant message
-                        chatSession.messages.append(ChatMessage(
-                            content: fullResponse,
-                            isUser: false
-                        ))
-                    }
-                }
-            }
-        } catch {
-            await MainActor.run {
-                chatSession.messages.append(ChatMessage(
-                    content: "Error: \(error.localizedDescription)",
-                    isUser: false
-                ))
-            }
-        }
-        
-        chatSession.isGenerating = false
-    }
-    
-    /// Create appropriate schema for the model
-    private func createSchema(for model: LLMLocalModel) -> LLMLocalSchema? {
-        switch model.id {
-        case "llama-3.2-1b":
-            return LLMLocalSchema(
-                model: .llama3_2_1B_4bit,
-                parameters: .init(
-                    systemPrompt: "You are a helpful assistant. Provide clear and concise responses.",
-                    maxOutputLength: 512,
-                   // temperature: 0.7,
-                )
+            // Pass the runner to generateResponse
+            await chatSession.generateResponse(
+                prompt: prompt,
+                model: model,
+                runner: runner
             )
-        case "phi-3-mini":
-            return LLMLocalSchema(
-                model: .phi3_5_4bit,
-                parameters: .init(
-                    systemPrompt: "You are a helpful assistant. Provide clear and concise responses.",
-                    maxOutputLength: 512,
-                   // temperature: 0.7,
-                )
-            )
-        case "mistral-7b-q4":
-            return LLMLocalSchema(
-                model: .mistral7B4bit,
-                parameters: .init(
-                    systemPrompt: "You are a helpful assistant. Provide clear and concise responses.",
-                    maxOutputLength: 512,
-                   // temperature: 0.7,
-                )
-            )
-        default:
-            return nil
         }
     }
 }

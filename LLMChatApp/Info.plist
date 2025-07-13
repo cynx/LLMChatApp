@@ -55,7 +55,7 @@
 			<false/>
 		</dict>
 		<key>LSMinimumSystemVersion</key>
-		<string>26.0</string>
+		<string>17.0</string>
 	</dict>
 	<key>CFBundleIdentifier</key>
 	<dict>
