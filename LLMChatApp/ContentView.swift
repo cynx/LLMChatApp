@@ -4,21 +4,24 @@
 //
 //  Created by Mehul Bhujwala on 13/7/2025.
 //
-
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selectedTab = 0
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView(selection: $selectedTab) {
+            ModelDownloadView()
+                .tabItem {
+                    Label("Models", systemImage: "square.and.arrow.down")
+                }
+                .tag(0)
+            
+            ChatView()
+                .tabItem {
+                    Label("Chat", systemImage: "message")
+                }
+                .tag(1)
         }
-        .padding()
     }
-}
-
-#Preview {
-    ContentView()
 }
